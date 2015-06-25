@@ -261,9 +261,12 @@ test-suite unit-tests
     UnitTests.Distribution.Compat.ReadP
     UnitTests.Distribution.Simple.Program.Internal
     UnitTests.Distribution.Utils.NubList
+    UnitTests.Distribution.PackageDescription.PrettyPrint
   main-is: UnitTests.hs
   build-depends:
     base,
+    bytestring,
+    file-embed,
     tasty,
     tasty-hunit,
     tasty-quickcheck,
