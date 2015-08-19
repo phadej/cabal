@@ -31,7 +31,7 @@ import Distribution.Simple.PackageIndex
 import Distribution.Simple.Utils
          ( comparing, debug, installDirectoryContents, withTempDirectory )
 import Distribution.InstalledPackageInfo as InstalledPackageInfo
-         ( InstalledPackageInfo(exposed) )
+         ( InstalledPackageInfo_(exposed) )
 
 regenerateHaddockIndex :: Verbosity
                        -> InstalledPackageIndex -> ProgramConfiguration
