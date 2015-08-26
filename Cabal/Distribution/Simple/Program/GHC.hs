@@ -452,8 +452,9 @@ verbosityOpts verbosity
   | otherwise              = ["-w", "-v0"]
 
 
-packageDbArgsConf :: PackageDBStack -> [String]
-packageDbArgsConf dbstack = case dbstack of
+-- For GHC <7.5
+packageDbArgsUsingPackageConf :: PackageDBStack -> [String]
+packageDbArgsUsingPackageConf dbstack = case dbstack of
   (GlobalPackageDB:UserPackageDB:dbs) -> concatMap specific dbs
   (GlobalPackageDB:dbs)               -> ("-no-user-package-conf")
                                        : concatMap specific dbs
@@ -464,9 +465,10 @@ packageDbArgsConf dbstack = case dbstack of
     ierror = error $ "internal error: unexpected package db stack: "
                   ++ show dbstack
 
-packageDbArgsDb :: PackageDBStack -> [String]
+-- >= GHC 7.5
+packageDbArgsUsingPackageDb :: PackageDBStack -> [String]
 -- special cases to make arguments prettier in common scenarios
-packageDbArgsDb dbstack = case dbstack of
+packageDbArgsUsingPackageDb dbstack = case dbstack of
   (GlobalPackageDB:UserPackageDB:dbs)
     | all isSpecific dbs              -> concatMap single dbs
   (GlobalPackageDB:dbs)
@@ -483,8 +485,8 @@ packageDbArgsDb dbstack = case dbstack of
 
 packageDbArgs :: GhcImplInfo -> PackageDBStack -> [String]
 packageDbArgs implInfo
-  | flagPackageConf implInfo = packageDbArgsConf
-  | otherwise                = packageDbArgsDb
+  | flagPackageConf implInfo = packageDbArgsUsingPackageConf
+  | otherwise                = packageDbArgsUsingPackageDb
 
 -- -----------------------------------------------------------------------------
 -- Boilerplate Monoid instance for GhcOptions
