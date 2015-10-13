@@ -195,7 +195,7 @@ runTestCase assertResult tc = do
   bracket createWorkDirectory (removeWorkDirectory doRemove) $ \workDirectory -> do
     -- Run
     let scriptDirectory = workDirectory </> tcShouldX tc
-    testResult <- run scriptDirectory "/bin/sh" [ "-e", tcName tc]
+    testResult <- run scriptDirectory "/bin/bash" [ "-e", tcName tc]
     -- Assert that we got what we expected
     assertResult testResult
     mustMatch testResult "stdout" (trStdOut testResult) (tcStdOutPath tc)
