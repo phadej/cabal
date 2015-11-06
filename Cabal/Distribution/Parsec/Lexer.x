@@ -10,12 +10,20 @@
 -- Lexer for the cabal files.
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+#ifdef CABAL_PARSEC_DEBUG
+{-# LANGUAGE PatternGuards #-}
+#endif
 module Distribution.Parsec.Lexer
   (ltest, lexToken, Token(..), LToken(..)
   ,bol_section, in_section, in_field_layout, in_field_braces
   ,mkLexState) where
 
+import Prelude ()
+import qualified Prelude as Prelude
+import Distribution.Compat.Prelude
+
 import Distribution.Parsec.LexerMonad
+import Distribution.Parsec.Types.Common (Position (..), incPos, retPos)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as B.Char8
@@ -23,7 +31,6 @@ import Data.Word (Word8)
 
 #ifdef CABAL_PARSEC_DEBUG
 import Debug.Trace
-import Control.Exception (assert)
 import qualified Data.Vector as V
 import qualified Data.Text   as T
 import qualified Data.Text.Encoding as T
@@ -64,13 +71,13 @@ $instresc        = $printable
 tokens :-
 
 <0> {
-  $bom   ;
+  $bom   { \_ _ _ -> addWarning LexWarningBOM "Byte-order mark found at the beginning of the file" >> lexToken }
   ()     ;
 }
 
 <bol_section, bol_field_layout, bol_field_braces> {
   $spacetab* @nl                        { \_ _ _ -> adjustPos retPos >> lexToken }
-  $nbspspacetab+ @nl                    { \_ _ _ -> adjustPos retPos >> addWarning "Non-breaking space occured" >> lexToken }
+  $nbspspacetab+ @nl                    { \_ _ _ -> adjustPos retPos >> addWarning LexWarningNBSP "Non-breaking space occured" >> lexToken }
   -- no @nl here to allow for comments on last line of the file with no trailing \n
   $spacetab* "--" $comment*             ;  -- TODO: check the lack of @nl works here
                                         -- including counting line numbers
@@ -132,12 +139,13 @@ tokens :-
 
 {
 
-data Token = TokSym   !ByteString
-           | TokStr   !String
-           | TokNum   !ByteString
-           | TokOther !ByteString
-           | Indent   !Int
-           | TokFieldLine !ByteString
+-- | Tokens of outer cabal file structure. Field values are treated opaquely.
+data Token = TokSym   !ByteString       -- ^ Haskell-like identifier
+           | TokStr   !String           -- ^ String in quotes
+           | TokNum   !ByteString       -- ^ Integral
+           | TokOther !ByteString       -- ^ Operator like token
+           | Indent   !Int              -- ^ Indentation token
+           | TokFieldLine !ByteString   -- ^ Lines after @:@
            | Colon
            | OpenBrace
            | CloseBrace
@@ -222,10 +230,10 @@ lexAll = do
     _       -> do ts <- lexAll
                   return (t : ts)
 
-ltest :: Int -> String -> IO ()
+ltest :: Int -> String -> Prelude.IO ()
 ltest code s =
   let (ws, xs) = execLexer (setStartCode code >> lexAll) (B.Char8.pack s)
-   in mapM_ print ws >> mapM_ print xs
+   in traverse_ print ws >> traverse_ print xs
 
 
 mkLexState :: ByteString -> LexState

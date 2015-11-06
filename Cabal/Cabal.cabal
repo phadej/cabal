@@ -322,9 +322,10 @@ flag old-directory
   description:  Use directory < 1.2 and old-time
   default:      False
 
-flag parsec-debug
-  default: False
-  manual: True
+flag parsec
+  description:  Use parsec parser
+  default:      False
+  manual:       True
 
 library
   build-depends:
@@ -334,8 +335,6 @@ library
     containers >= 0.4 && < 0.6,
     deepseq    >= 1.3 && < 1.5,
     filepath   >= 1.3 && < 1.5,
-    transformers,
-    parsec     >= 3.1.9 && <3.2,
     pretty     >= 1.1 && < 1.2,
     process    >= 1.1.0.1 && < 1.5,
     time       >= 1.4 && < 1.7
@@ -347,19 +346,10 @@ library
     build-depends: directory >= 1.2 && < 1.3,
                    process   >= 1.1.0.2  && < 1.5
 
-  build-tools:
-    alex >= 3.1.4
-
   if flag(bundled-binary-generic)
     build-depends: binary >= 0.5 && < 0.7
   else
     build-depends: binary >= 0.7 && < 0.9
-
-  if flag(parsec-debug)
-    cpp-options: -DCABAL_PARSEC_DEBUG
-    build-depends:
-      text       >= 1.2 && <1.3,
-      vector     >= 0.10 && <0.12
 
   -- Needed for GHC.Generics before GHC 7.6
   if impl(ghc < 7.6)
@@ -411,9 +401,6 @@ library
     Distribution.PackageDescription.Parse
     Distribution.PackageDescription.PrettyPrint
     Distribution.PackageDescription.Utils
-    Distribution.Parsec.Lexer
-    Distribution.Parsec.LexerMonad
-    Distribution.Parsec.Parser
     Distribution.ParseUtils
     Distribution.PrettyUtils
     Distribution.ReadE
@@ -499,6 +486,28 @@ library
     Distribution.Version
     Language.Haskell.Extension
     Distribution.Compat.Binary
+
+  if flag(parsec)
+    cpp-options: -DCABAL_PARSEC
+    build-depends:
+      transformers,
+      parsec >= 3.1.9 && <3.2
+    build-tools:
+      alex >= 3.1.4
+    exposed-modules:
+      Distribution.Compat.Parsec
+      Distribution.PackageDescription.Parsec
+      Distribution.PackageDescription.Parsec.FieldDescr
+      Distribution.Parsec.Class
+      Distribution.Parsec.ConfVar
+      Distribution.Parsec.Lexer
+      Distribution.Parsec.LexerMonad
+      Distribution.Parsec.Parser
+      Distribution.Parsec.Types.Common
+      Distribution.Parsec.Types.Field
+      Distribution.Parsec.Types.FieldDescr
+      Distribution.Parsec.Types.ParseResult 
+      Distribution.Parsec.Types.Stream
 
   other-modules:
     Distribution.Backpack.PreExistingComponent
@@ -623,6 +632,32 @@ test-suite package-tests
     old-time
   if !os(windows)
     build-depends: unix, exceptions
+  ghc-options: -Wall -rtsopts
+  default-extensions: CPP
+  default-language: Haskell2010
+
+test-suite parser-tests
+  if !flag(parsec)
+    buildable: False
+
+  type: exitcode-stdio-1.0
+  main-is: ParserTests.hs
+  other-modules:
+    DiffInstances
+    StructDiff
+  hs-source-dirs: tests
+  build-depends:
+    base,
+    containers,
+    tar >=0.5 && <0.6,
+    bytestring,
+    directory,
+    filepath,
+    generics-sop ==0.2.*,
+    these >=0.7.1 && <0.8,
+    singleton-bool >=0.1.1.0 && <0.2,
+    keys,
+    Cabal
   ghc-options: -Wall -rtsopts
   default-extensions: CPP
   default-language: Haskell2010

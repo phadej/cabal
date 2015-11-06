@@ -10,10 +10,6 @@ module Distribution.Parsec.LexerMonad (
     InputStream,
     LexState(..),
     LexResult(..),
-    Position(..),
-    incPos,
-    retPos,
-    showPos,
 
     Lex(..),
     execLexer,
@@ -29,15 +25,16 @@ module Distribution.Parsec.LexerMonad (
     setStartCode,
 
     LexWarning(..),
+    LexWarningType(..),
     addWarning,
+    toPWarning,
 
   ) where
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative (Applicative(..))
-#endif
+import Prelude ()
+import Distribution.Compat.Prelude
 
-import Control.Monad (ap, liftM)
+import Distribution.Parsec.Types.Common (Position (..), PWarning (..), PWarnType (..))
 
 import qualified Data.ByteString as B
 
@@ -65,9 +62,22 @@ instance Monad Lex where
 
 data LexResult a = LexResult {-# UNPACK #-} !LexState a
 
-data LexWarning = LexWarning {-# UNPACK #-} !Position
+data LexWarningType
+    = LexWarningNBSP  -- ^ Encountered non breaking space
+    | LexWarningBOM   -- ^ BOM at the start of the cabal file
+  deriving (Show)
+
+data LexWarning = LexWarning                !LexWarningType
+                             {-# UNPACK #-} !Position
                                             !String
   deriving (Show)
+
+toPWarning :: LexWarning -> PWarning
+toPWarning (LexWarning t p s) = PWarning t' p s
+  where
+    t' = case t of
+        LexWarningNBSP -> PWTLexNBSP
+        LexWarningBOM  -> PWTLexBOM
 
 data LexState = LexState {
         curPos   :: {-# UNPACK #-} !Position,        -- position at current input location
@@ -83,19 +93,7 @@ data LexState = LexState {
 type StartCode   = Int    -- ^ An @alex@ lexer start code
 type InputStream = B.ByteString
 
-data Position = Position {-# UNPACK #-}   !Int           -- row
-                         {-# UNPACK #-}   !Int           -- column
-  deriving (Eq, Show)
 
-incPos :: Int -> Position -> Position
-incPos n (Position row col) = Position row (col + n)
-
-retPos :: Position -> Position
-retPos (Position row _col) = Position (row + 1) 1
-
--- TODO:
-showPos :: Position -> String
-showPos = show
 
 -- | Execute the given lexer on the supplied input stream.
 execLexer :: Lex a -> InputStream -> ([LexWarning], a)
@@ -104,6 +102,7 @@ execLexer (Lex lexer) input =
       LexResult LexState{ warnings = ws } result -> (ws, result)
   where
     initialState = LexState
+      -- TODO: add 'startPosition'
       { curPos   = Position 1 1
       , curInput = input
       , curCode  = 0
@@ -143,5 +142,6 @@ setStartCode :: Int -> Lex ()
 setStartCode c = Lex $ \s -> LexResult s{ curCode = c } ()
 
 -- | Add warning at the current position
-addWarning :: String -> Lex ()
-addWarning msg = Lex $ \s@LexState{ curPos = pos, warnings = ws  } -> LexResult s{ warnings = LexWarning pos msg : ws }  ()
+addWarning :: LexWarningType -> String -> Lex ()
+addWarning wt msg = Lex $ \s@LexState{ curPos = pos, warnings = ws  } ->
+    LexResult s{ warnings = LexWarning wt pos msg : ws } ()

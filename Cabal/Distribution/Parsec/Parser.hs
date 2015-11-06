@@ -1,8 +1,9 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings     #-}
+#ifdef CABAL_PARSEC_DEBUG
+{-# LANGUAGE PatternGuards         #-}
+#endif
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Distribution.Parsec.Parser
@@ -11,35 +12,51 @@
 -- Maintainer  :  cabal-devel@haskell.org
 -- Portability :  portable
 module Distribution.Parsec.Parser (
-  -- * Types
-  Field(..),
-  Name(..),
-  FieldLine(..),
-  SectionArg(..),
-  -- * Grammar and parsing
-  -- $grammar
-  readFields,
-  readFields'
-  ) where
+    -- * Types
+    Field(..),
+    Name(..),
+    FieldLine(..),
+    SectionArg(..),
+    -- * Grammar and parsing
+    -- $grammar
+    readFields,
+    readFields',
+    -- * Transformations
+    elaborate,
+    fromOldSyntax,
+#ifdef CABAL_PARSEC_DEBUG
+    parseFile,
+    parseStr,
+    parseBS,
+#endif
+    ) where
 
-import Distribution.Parsec.Lexer
-import Distribution.Parsec.LexerMonad (unLex, LexState(..), LexResult(..), Position(..), LexWarning)
+import           Distribution.Compat.Prelude
+import           Prelude
+                 ()
 
-import Text.Parsec.Prim
-import Text.Parsec.Combinator hiding (eof, notFollowedBy)
-import Text.Parsec.Pos
-import Text.Parsec.Error
+-- TODO: introduce Distribution.Compat.Parsec
+import           Distribution.Parsec.Lexer
+import           Distribution.Parsec.LexerMonad
+                 (LexResult (..), LexState (..), LexWarning, unLex)
+import           Distribution.Parsec.Types.Common
+import           Distribution.Parsec.Types.Field
 
-import Control.Monad (guard, liftM2)
-import Data.Char as Char
-import Data.Functor.Identity
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
+import           Control.Monad
+                 (guard)
+import qualified Data.ByteString.Char8            as B
+import           Data.Functor.Identity
+import           Text.Parsec.Combinator           hiding
+                 (eof, notFollowedBy)
+import           Text.Parsec.Error
+import           Text.Parsec.Pos
+import           Text.Parsec.Prim                 hiding
+                 (many, (<|>))
 
 #ifdef CABAL_PARSEC_DEBUG
-import qualified Data.Text   as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Encoding.Error as T
+import qualified Data.Text                        as T
+import qualified Data.Text.Encoding               as T
+import qualified Data.Text.Encoding.Error         as T
 #endif
 
 data LexState' = LexState' !LexState (LToken, LexState')
@@ -145,29 +162,6 @@ inLexerMode :: LexerMode -> Parser p -> Parser p
 inLexerMode (LexerMode mode) p =
   do setLexerMode mode; x <- p; setLexerMode in_section; return x
 
-data Field ann = Field   !(Name ann) [FieldLine ann]
-               | Section !(Name ann) [SectionArg ann] [Field ann]
-               | IfElseBlock [SectionArg ann] [Field ann] [Field ann]
-  deriving (Eq, Show, Functor)
-
-data Name ann  = Name       !ann !ByteString
-  deriving (Eq, Show, Functor)
-
-mkName :: ann -> ByteString -> Name ann
-mkName ann bs = Name ann (B.map Char.toLower bs)
-
-getName :: Name a -> ByteString
-getName (Name _ bs) = bs
-
-data FieldLine ann  = FieldLine  !ann !ByteString
-  deriving (Eq, Show, Functor)
-
-data SectionArg ann = SecArgName  !ann !ByteString
-                    | SecArgStr   !ann !String
-                    | SecArgNum   !ann !ByteString
-                    | SecArgOther !ann !ByteString
-  deriving (Eq, Show, Functor)
-
 
 -----------------------
 -- Cabal file grammar
@@ -220,7 +214,7 @@ data SectionArg ann = SecArgName  !ann !ByteString
 -- the usual indent token. Then in the parser we can resolve everything
 -- with just one token of lookahead and so without using 'try'.
 
--- Top level of a file using cabal syntax 
+-- Top level of a file using cabal syntax
 --
 cabalStyleFile :: Parser [Field Position]
 cabalStyleFile = do es <- elements zeroIndentLevel
@@ -331,20 +325,23 @@ readFields' s = parse (liftM2 (,) cabalStyleFile getLexerWarnings) "the input" l
     lexSt = mkLexState' (mkLexState s)
 
 #ifdef CABAL_PARSEC_DEBUG
+parseTest' :: Show a => Parsec LexState' () a -> SourceName -> B.ByteString -> IO ()
 parseTest' p fname s =
     case parse p fname (lexSt s) of
       Left err -> putStrLn (formatError s err)
 
       Right x  -> print x
   where
-    lexSt s = mkLexState' (mkLexState s)
+    lexSt = mkLexState' . mkLexState
 
 parseFile :: Show a => Parser a -> FilePath -> IO ()
 parseFile p f = B.readFile f >>= \s -> parseTest' p f s
 
 parseStr  :: Show a => Parser a -> String -> IO ()
-parseStr p s = parseTest' p "<input string>" (B.pack s)
+parseStr p = parseBS p . B.pack
 
+parseBS  :: Show a => Parser a -> B.ByteString -> IO ()
+parseBS p = parseTest' p "<input string>"
 
 formatError :: B.ByteString -> ParseError -> String
 formatError input perr =
@@ -368,7 +365,7 @@ lines' s1
                   (l, s2) | Just (c,s3) <- T.uncons s2
                          -> case T.uncons s3 of
                               Just ('\n', s4) | c == '\r' -> l : lines' s4
-                              _                           -> l : lines' s3
+                              _               -> l : lines' s3
                           | otherwise -> [l]
 #endif
 
@@ -382,16 +379,38 @@ eof = notFollowedBy anyToken <?> "end of file"
 --                            "expecting" "unexpected" "end of input"
 
 -- | Elaborate a 'Section's with @if@ name into the 'IfElseBlock's.
+--
+-- TOOD: rename
 elaborate :: Show a => [Field a] -> [Field a]
 elaborate [] = []
 elaborate (field@Field{} : rest) = field : elaborate rest
-elaborate (IfElseBlock args t e : rest) =
-  IfElseBlock args (elaborate t) (elaborate e) : elaborate rest
-elaborate (Section name args fields : Section ename [] efields : rest)
+elaborate (IfElseBlock ann args t e : rest) =
+  IfElseBlock ann args (elaborate t) (elaborate e) : elaborate rest
+elaborate (Section name@(Name ann _) args fields : Section ename [] efields : rest)
   | getName name == "if" && getName ename == "else" =
-    IfElseBlock args (elaborate fields) (elaborate efields) : elaborate rest
-elaborate (Section name args fields : rest)
+    IfElseBlock ann args (elaborate fields) (elaborate efields) : elaborate rest
+elaborate (Section name@(Name ann _) args fields : rest)
   | getName name == "if" =
-    IfElseBlock args (elaborate fields) [] : elaborate rest
+    IfElseBlock ann args (elaborate fields) [] : elaborate rest
   | otherwise            =
     Section name args (elaborate fields) : elaborate rest
+
+-- | TODO
+data OldSyntax = OldSyntax | NewSyntax
+    deriving (Show)
+
+-- | "Sectionize" an old-style Cabal file.  A sectionized file has:
+--
+--  * all global fields at the beginning, followed by
+--
+--  * all flag declarations, followed by
+--
+--  * an optional library section, and an arbitrary number of executable
+--    sections (in any order).
+--
+-- The current implementation just gathers all library-specific fields
+-- in a library section and wraps all executable stanzas in an executable
+-- section.
+fromOldSyntax :: [Field a] -> (OldSyntax, [Field a])
+-- TODO: implement me
+fromOldSyntax fs = (NewSyntax, fs)
