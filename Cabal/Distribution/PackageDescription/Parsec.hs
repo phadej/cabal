@@ -375,55 +375,55 @@ parseCondTree
 parseCondTree descs unknown cond ini = impl
   where
     impl :: [Field Position] -> ParseResult (CondTree ConfVar c a)
-    impl fields = do
-        (x, xs) <- go (ini, []) fields
-        return $ CondNode x (cond x) xs
+    impl =  go ini mempty
 
     --TODO: change to take and return condnode ?
     --TODO: use dlist to accumulate results?
-    go :: (a, [C c a]) -> [Field Position] -> ParseResult (a, [C c a])
-    go xss [] = return xss
+    go :: a -> DList (C c a) -> [Field Position] -> ParseResult (CondTree ConfVar c a) 
+    go x xs [] = return $ CondNode x (cond x) (runDList xs) 
 
-    go xxs (Section (Name _pos name) tes con : fields) | name == "if" = do
+    go x xs (Section (Name _pos name) tes con : fields) | name == "if" = do
         tes'  <- parseConditionConfVar tes
         con' <- impl con
         -- Jump to 'else' state
-        goElse tes' con' xxs fields
+        goElse tes' con' x xs fields
 
-    go xxs (Section (Name pos name) _ _ : fields) = do
+    go x xs (Section (Name pos name) _ _ : fields) = do
         -- Even we occur a subsection, we can continue parsing
         -- http://hackage.haskell.org/package/constraints-0.1/constraints.cabal
         parseWarning pos PWTInvalidSubsection $ "invalid subsection " ++ show name
-        go xxs fields
+        go x xs fields
 
-    go (x, xs) (Field (Name pos name) fieldLines : fields) =
+    go x xs (Field (Name pos name) fieldLines : fields) =
         case Map.lookup name fieldParsers of
             Nothing -> fieldlinesToString pos fieldLines >>= \value -> case unknown name value x of
                 Nothing -> do
                     parseWarning pos PWTUnknownField $ "Unknown field: " ++ show name
-                    go (x, xs) fields
+                    go x xs fields
                 Just x' -> do
-                    go (x', xs) fields
+                    go x' xs fields
             Just parser -> do
                 x' <- runFieldParser (parser x) fieldLines
-                go (x', xs) fields
+                go x' xs fields
 
     -- Try to parse else branch
     goElse
       :: Condition ConfVar
       -> CondTree ConfVar c a
-      -> (a, [C c a]) -> [Field Position] -> ParseResult (a, [C c a])
-    goElse tes con (x, xs) (Section (Name pos name) secArgs alt : fields) | name == "else" = do
+      -> a
+      -> DList (C c a) 
+      -> [Field Position] -> ParseResult (CondTree ConfVar c a) 
+    goElse tes con x xs (Section (Name pos name) secArgs alt : fields) | name == "else" = do
         when (not . null $ secArgs) $ do
             parseFailure pos $ "`else` section has section arguments " ++ show secArgs
         alt' <- case alt of
             [] -> pure Nothing
             _  -> Just <$> impl alt
         let ieb = (tes, con, alt')
-        go (x, xs ++ [ieb]) fields
-    goElse tes con (x, xs) fields = do
+        go x (xs <> singleton ieb) fields
+    goElse tes con x xs fields = do
         let ieb = (tes, con, Nothing)
-        go (x, xs ++ [ieb]) fields
+        go x (xs <> singleton ieb) fields
 
     fieldParsers :: Map FieldName (a -> FieldParser a)
     fieldParsers = Map.fromList $
@@ -557,3 +557,22 @@ data Syntax = OldSyntax | NewSyntax
 
 libFieldNames :: [FieldName]
 libFieldNames = map fieldName libFieldDescrs
+
+-------------------------------------------------------------------------------
+-- move to D.C.DList
+-------------------------------------------------------------------------------
+
+newtype DList a = DList ([a] -> [a])
+
+runDList :: DList a -> [a]
+runDList (DList run) = run []
+
+singleton :: a -> DList a
+singleton a = DList (a:)
+
+instance Monoid (DList a) where
+  mempty = DList id
+  mappend = (<>)
+
+instance Semigroup (DList a) where
+  DList a <> DList b = DList (a . b)
