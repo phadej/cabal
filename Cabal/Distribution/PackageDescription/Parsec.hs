@@ -124,7 +124,7 @@ fieldlinesToString pos fls =
 runFieldParser' :: Position -> FieldParser a -> String -> ParseResult a
 runFieldParser' (Position row col) p str = case P.runParser p' [] "<field>" str of
     Right (pok, ws) -> do
-        -- | TODO: map pos
+        -- TODO: map pos
         traverse_ (\(PWarning t pos w) -> parseWarning pos t w) ws
         pure pok
     Left err        -> do
