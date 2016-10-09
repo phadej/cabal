@@ -49,6 +49,7 @@ parseIndex action = do
 
 parseIndex' :: Monoid a => (FilePath -> BSL.ByteString -> IO a) -> FilePath -> IO a
 parseIndex' action path = do
+    putStrLn $ "Reading index from: " ++ path
     contents <- BSL.readFile path
     let entries = Tar.read contents
     Tar.foldEntries (\e m -> mappend <$> f e <*> m) (return mempty) (fail . show) entries
