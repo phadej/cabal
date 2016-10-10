@@ -10,7 +10,7 @@ set -ex
 
 git ls-files tests \
     | awk '/\.(hs|lhs|c|sh|cabal|hsc|err|out|in|project)$|ghc/ { print } { next }' \
-    | awk '/Check.hs$|UnitTests|PackageTester|autogen|register.sh|PackageTests.hs|IntegrationTests.hs|CreatePipe|^tests\/Test/ { next } { print }' \
+    | awk '/Check.hs$|UnitTests|PackageTester|autogen|register.sh|PackageTests.hs|IntegrationTests.hs|ParserTests.hs|DiffInstances.hs|StructDiff.hs|CreatePipe|^tests\/Test/ { next } { print }' \
     | LC_ALL=C sort \
     | sed -e 's/^/  /' \
     > source-file-list
