@@ -134,6 +134,14 @@ instance Functor Flag where
   fmap f (Flag x) = Flag (f x)
   fmap _ NoFlag  = NoFlag
 
+instance Foldable Flag where
+    foldMap _ NoFlag = mempty
+    foldMap f (Flag a) = f a
+
+instance Traversable Flag where
+    traverse _ NoFlag = pure NoFlag
+    traverse f (Flag a) = Flag <$> f a
+
 instance Monoid (Flag a) where
   mempty = NoFlag
   mappend = (<>)

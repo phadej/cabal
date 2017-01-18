@@ -10,7 +10,7 @@ import Distribution.Simple.Setup
 import Distribution.Verbosity
          ( normal )
 import Distribution.Simple.Command
-         ( CommandUI(..), usageAlternatives )
+         ( CommandUI(..), usageAlternatives, option, liftOption, OptionField, reqArg' )
 import Distribution.Client.DistDirLayout
          ( DistDirLayout(..) )
 import Distribution.Client.Setup
@@ -32,21 +32,41 @@ import qualified Distribution.Client.InstallPlan as InstallPlan
 import Control.Monad
 import Data.List
 
-pathCommand :: CommandUI (ConfigFlags, ConfigExFlags, InstallFlags, HaddockFlags)
+-- | make a record for flags of various flags
+type PathElement = String
+
+pathCommand :: CommandUI ((ConfigFlags, ConfigExFlags, InstallFlags, HaddockFlags), [PathElement])
 pathCommand = Client.installCommand {
   commandName         = "new-path",
   commandSynopsis     = "Display paths to various internal things",
   commandUsage        = usageAlternatives "new-paths" [ "[FLAGS]"
                                                       , "[FLAGS] TARGETS" ],
   commandDescription  = Nothing,
-  commandNotes        = Nothing
+  commandNotes        = Nothing,
+  commandDefaultFlags = (commandDefaultFlags Client.installCommand, []),
+  commandOptions      = \sopa ->
+      liftOptions fst helper (commandOptions Client.installCommand sopa) ++
+      [ option [] ["path-element"]
+          "Output only specific paths"
+          snd (\ys' (x, ys) -> (x, ys ++ ys'))
+          (reqArg' "ELEMENT" (:[]) id)
+      ]
  }
+  where
+    helper x (_, z) = (x, z)
 
-pathAction :: (ConfigFlags, ConfigExFlags, InstallFlags, HaddockFlags)
+liftOptions :: (b -> a) -> (a -> b -> b)
+            -> [OptionField a] -> [OptionField b]
+liftOptions get set = map (liftOption get set)
+
+pathAction :: ((ConfigFlags, ConfigExFlags, InstallFlags, HaddockFlags), [PathElement])
            -> [String] -> GlobalFlags -> IO ()
-pathAction (configFlags, configExFlags, installFlags, haddockFlags)
+pathAction ((configFlags, configExFlags, installFlags, haddockFlags), pathElements)
             targetStrings globalFlags = do
 
+    -- pathElements' = pathElements ^.. folded . folded
+    print targetStrings
+    print pathElements
     userTargets <- readUserBuildTargets targetStrings
 
     ProjectBuildContext {
@@ -110,7 +130,13 @@ pathAction (configFlags, configExFlags, installFlags, haddockFlags)
         paths | null targetStrings = [projectDirs]
               | otherwise          = map elabPaths elabs
 
-    putStr $ unlines $ concat
-           $ map ((++ [""]) . map (\(l,p) -> l ++ ": " ++ p)) paths
+    case pathElements of
+        [pe] -> case lookup pe (head paths) of
+            Just x -> putStrLn x
+            Nothing -> fail "not implemented - xxx"
+        _ -> do
+            putStr $ unlines $ concat
+                   $ map ((++ [""]) . map (\(l,p) -> l ++ ": " ++ p))
+                   $ paths
   where
     verbosity = fromFlagOrDefault normal (configVerbosity configFlags)
