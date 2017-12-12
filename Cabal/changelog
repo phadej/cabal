@@ -30,6 +30,8 @@
 	* Compilation with section splitting is now supported via the
 	'--enable-split-sections' flag (#4819)
 	* Support for common stanzas (#4751)
+	* Fields with mandatory commas (e.g. build-depends) may have
+	  leading or trailing comma (either one, not both) (#4953)
 	* TODO
 
 2.0.1.1 Mikhail Glushenkov <mikhail.glushenkov@gmail.com> December 2017
