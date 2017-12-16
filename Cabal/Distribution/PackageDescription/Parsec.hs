@@ -39,6 +39,7 @@ import Data.List                                    (partition)
 import Distribution.CabalSpecVersion
 import Distribution.Compat.Lens
 import Distribution.FieldGrammar
+import Distribution.FieldGrammar.Parsec             (NamelessField (..))
 import Distribution.PackageDescription
 import Distribution.PackageDescription.FieldGrammar
 import Distribution.PackageDescription.Quirks       (patchQuirks)
@@ -47,7 +48,7 @@ import Distribution.Parsec.Common
 import Distribution.Parsec.ConfVar                  (parseConditionConfVar)
 import Distribution.Parsec.Field                    (FieldName, getName)
 import Distribution.Parsec.LexerMonad               (LexWarning, toPWarning)
-import Distribution.Parsec.Newtypes                 (CommaFSep, List, Token)
+import Distribution.Parsec.Newtypes                 (CommaFSep, List, SpecVersion (..), Token)
 import Distribution.Parsec.Parser
 import Distribution.Parsec.ParseResult
 import Distribution.Simple.Utils                    (die', fromUTF8BS, warn)
@@ -55,11 +56,12 @@ import Distribution.Text                            (display)
 import Distribution.Types.CondTree
 import Distribution.Types.Dependency                (Dependency)
 import Distribution.Types.ForeignLib
+import Distribution.Types.PackageDescription        (specVersion')
 import Distribution.Types.UnqualComponentName       (UnqualComponentName, mkUnqualComponentName)
 import Distribution.Utils.Generic                   (breakMaybe, unfoldrM)
 import Distribution.Verbosity                       (Verbosity)
 import Distribution.Version
-       (LowerBound (..), Version, asVersionIntervals, mkVersion, orLaterVersion)
+       (LowerBound (..), Version, asVersionIntervals, mkVersion, orLaterVersion, version0)
 import System.Directory                             (doesFileExist)
 
 import qualified Data.ByteString                                   as BS
@@ -156,25 +158,44 @@ parseGenericPackageDescription'
 parseGenericPackageDescription' lexWarnings fs = do
     parseWarnings (fmap toPWarning lexWarnings)
     let (syntax, fs') = sectionizeFields fs
-
-    -- PackageDescription
     let (fields, sectionFields) = takeFields fs'
-    pd <- parseFieldGrammar fields (packageDescriptionFieldGrammar :: ParsecFieldGrammar' CabalSpecLatest PackageDescription)
+
+    -- cabal-version
+    cabalVer <- case Map.lookup "cabal-version" fields >>= safeLast of
+        Nothing -> return version0
+        Just (MkNamelessField pos fls) ->
+            specVersion' . Newtype.unpack' SpecVersion <$> runFieldParser pos parsec fls
+
+    -- Package description
+    let parsePackageDescription
+          | cabalVer >= mkVersion [2,1] =
+              parseFieldGrammar fields (packageDescriptionFieldGrammar :: ParsecFieldGrammar' CabalSpecV22 PackageDescription)
+          | cabalVer >= mkVersion [1,25] =
+              parseFieldGrammar fields (packageDescriptionFieldGrammar :: ParsecFieldGrammar' CabalSpecV20 PackageDescription)
+          | otherwise =
+              parseFieldGrammar fields (packageDescriptionFieldGrammar :: ParsecFieldGrammar' CabalSpecOld PackageDescription)
+
+    pd <- parsePackageDescription
+
+    -- old syntax warning
     maybeWarnCabalVersion syntax pd
 
     -- Sections
     let gpd = emptyGpd & L.packageDescription .~ pd
 
     let goSections'
-          | specVersion pd >= mkVersion [2,1] =
+          | cabalVer >= mkVersion [2,1] =
               goSections (cabalSpecVersion :: CabalSpecV22)
-          | specVersion pd >= mkVersion [1,25] =
+          | cabalVer >= mkVersion [1,25] =
               goSections (cabalSpecVersion :: CabalSpecV20)
           | otherwise =
               goSections (cabalSpecVersion :: CabalSpecOld)
 
     view stateGpd <$> execStateT (goSections' sectionFields) (SectionS gpd Map.empty)
   where
+    safeLast :: [a] -> Maybe a
+    safeLast = listToMaybe . reverse
+
     emptyGpd :: GenericPackageDescription
     emptyGpd = GenericPackageDescription emptyPackageDescription [] Nothing [] [] [] [] []
 
@@ -217,7 +238,7 @@ goSections specVer = traverse_ process
     hasCommonStanzas = specHasCommonStanzas specVer
 
     parseCondTree'
-        :: FromBuildInfo a 
+        :: FromBuildInfo a
         => ParsecFieldGrammar' v a       -- ^ grammar
         -> Map String CondTreeBuildInfo  -- ^ common stanzas
         -> [Field Position]
