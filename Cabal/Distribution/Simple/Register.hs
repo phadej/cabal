@@ -407,7 +407,7 @@ generalInstalledPackageInfo adjustRelIncDirs pkg abi_hash lib lbi clbi installDi
     IPI.instantiatedWith   = componentInstantiatedWith clbi,
     IPI.sourceLibName      = libName lib,
     IPI.compatPackageKey   = componentCompatPackageKey clbi,
-    IPI.license            = license     pkg,
+    IPI.license            = licenseRaw  pkg,
     IPI.copyright          = copyright   pkg,
     IPI.maintainer         = maintainer  pkg,
     IPI.author             = author      pkg,

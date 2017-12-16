@@ -45,6 +45,7 @@
 module Distribution.License (
     License(..),
     knownLicenses,
+    licenseToSPDX,
   ) where
 
 import Distribution.Compat.Prelude
@@ -57,6 +58,7 @@ import Distribution.Version
 
 import qualified Distribution.Compat.Parsec as P
 import qualified Distribution.Compat.ReadP  as Parse
+import qualified Distribution.SPDX          as SPDX
 import qualified Text.PrettyPrint           as Disp
 
 -- | Indicates the license under which a package's source code is released.
@@ -139,6 +141,14 @@ knownLicenses = [ GPL  unversioned, GPL  (version [2]),    GPL  (version [3])
  where
    unversioned = Nothing
    version     = Just . mkVersion
+
+-- | Convert old 'License' to SPDX 'SPDX.LicenseExpression'.
+-- Non-SPDX licenses are converted to 'SPDX.LicenseRef'.
+--
+-- @since 2.2.0.0
+licenseToSPDX :: License -> SPDX.LicenseExpression
+licenseToSPDX MIT = SPDX.simpleLicenseExpression SPDX.MIT
+licenseToSPDX l = SPDX.ELicense (Left (SPDX.mkLicenseRef' Nothing (prettyShow l))) SPDX.Only Nothing
 
 instance Pretty License where
   pretty (GPL  version)         = Disp.text "GPL"    <<>> dispOptVersion version

@@ -51,6 +51,7 @@ import Distribution.Compat.Prelude
 
 import Distribution.ParseUtils
 import Distribution.License
+import Distribution.SPDX
 import Distribution.Package hiding (installedUnitId, installedPackageId)
 import Distribution.Backpack
 import qualified Distribution.Package as Package
@@ -87,7 +88,7 @@ data InstalledPackageInfo
         instantiatedWith  :: [(ModuleName, OpenModule)],
         sourceLibName     :: Maybe UnqualComponentName,
         compatPackageKey  :: String,
-        license           :: License,
+        license           :: Either LicenseExpression License,
         copyright         :: String,
         maintainer        :: String,
         author            :: String,
@@ -186,7 +187,7 @@ emptyInstalledPackageInfo
         instantiatedWith  = [],
         sourceLibName     = Nothing,
         compatPackageKey  = "",
-        license           = UnspecifiedLicense,
+        license           = Right UnspecifiedLicense, -- TODO
         copyright         = "",
         maintainer        = "",
         author            = "",
@@ -405,7 +406,7 @@ basicFieldDescrs =
                            dispCompatPackageKey   parseCompatPackageKey
                            compatPackageKey       (\pk pkg -> pkg{compatPackageKey=pk})
  , simpleField "license"
-                           disp                   parseLicenseQ
+                           (either undefined disp)                  (fmap Right parseLicenseQ)
                            license                (\l pkg -> pkg{license=l})
  , simpleField "copyright"
                            showFreeText           parseFreeText

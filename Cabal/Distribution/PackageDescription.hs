@@ -18,6 +18,7 @@ module Distribution.PackageDescription (
         PackageDescription(..),
         emptyPackageDescription,
         specVersion,
+        license,
         descCabalVersion,
         BuildType(..),
         knownBuildTypes,

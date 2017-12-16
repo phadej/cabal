@@ -9,6 +9,7 @@ import Distribution.Compat.Lens
 
 import Distribution.Compiler                 (CompilerFlavor)
 import Distribution.License                  (License)
+import Distribution.SPDX                     (LicenseExpression)
 import Distribution.Types.Benchmark          (Benchmark)
 import Distribution.Types.BuildType          (BuildType)
 import Distribution.Types.Dependency         (Dependency)
@@ -28,9 +29,9 @@ package :: Lens' PackageDescription PackageIdentifier
 package f s = fmap (\x -> s { T.package = x }) (f (T.package s))
 {-# INLINE package #-}
 
-license :: Lens' PackageDescription License
-license f s = fmap (\x -> s { T.license = x }) (f (T.license s))
-{-# INLINE license #-}
+licenseRaw :: Lens' PackageDescription (Either LicenseExpression License)
+licenseRaw f s = fmap (\x -> s { T.licenseRaw = x }) (f (T.licenseRaw s))
+{-# INLINE licenseRaw #-}
 
 licenseFiles :: Lens' PackageDescription [String]
 licenseFiles f s = fmap (\x -> s { T.licenseFiles = x }) (f (T.licenseFiles s))

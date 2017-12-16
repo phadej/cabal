@@ -17,9 +17,10 @@ module Distribution.Parsec.Newtypes (
     NoCommaFSep (..),
     -- ** Type
     List,
-    -- * Version
+    -- * Version & License
     SpecVersion (..),
     TestedWith (..),
+    SpecLicense (..),
     -- * Identifiers
     Token (..),
     Token' (..),
@@ -36,9 +37,11 @@ import           Data.Functor.Identity      (Identity (..))
 import           Data.List                  (dropWhileEnd)
 import qualified Distribution.Compat.Parsec as P
 import           Distribution.Compiler      (CompilerFlavor)
+import           Distribution.License       (License)
 import           Distribution.Parsec.Class
 import           Distribution.Parsec.Common (PWarning)
 import           Distribution.Pretty
+import           Distribution.SPDX          (LicenseExpression)
 import           Distribution.Version       (Version, VersionRange, anyVersion)
 import           Text.PrettyPrint           (Doc, comma, fsep, punctuate, vcat, (<+>))
 
@@ -99,7 +102,7 @@ newtype List sep b a = List { getList :: [a] }
 -- | 'alaList' and 'alaList'' are simply 'List', with additional phantom
 -- arguments to constraint the resulting type
 --
--- >>> :t alaList VCat 
+-- >>> :t alaList VCat
 -- alaList VCat :: [a] -> List VCat (Identity a) a
 --
 -- >>> :t alaList' FSep Token
@@ -175,6 +178,20 @@ instance Parsec SpecVersion where
         parsecSpecVersion = Left <$> parsec <|> Right <$> parsec
 
 instance Pretty SpecVersion where
+    pretty = either pretty pretty . unpack
+
+-- | SPDX License expression or legacy license
+newtype SpecLicense = SpecLicense { getSpecLicense :: Either LicenseExpression License }
+
+instance Newtype SpecLicense (Either LicenseExpression License) where
+    pack = SpecLicense
+    unpack = getSpecLicense
+
+instance Parsec SpecLicense where
+    parsec   = SpecLicense . Right <$> parsec
+    parsec22 = SpecLicense . Left <$> parsec
+
+instance Pretty SpecLicense where
     pretty = either pretty pretty . unpack
 
 -- | Version range or just version

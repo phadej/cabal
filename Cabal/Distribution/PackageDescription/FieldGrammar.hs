@@ -70,7 +70,7 @@ packageDescriptionFieldGrammar
     => g PackageDescription PackageDescription
 packageDescriptionFieldGrammar = PackageDescription
     <$> blurFieldGrammar L.package packageIdentifierGrammar
-    <*> optionalFieldDef    "license"                                  L.license UnspecifiedLicense
+    <*> optionalFieldDefAla "license"       SpecLicense                L.licenseRaw (error "default license")
     <*> licenseFilesGrammar
     <*> optionalFieldDefAla "copyright"     FreeText                   L.copyright ""
     <*> optionalFieldDefAla "maintainer"    FreeText                   L.maintainer ""

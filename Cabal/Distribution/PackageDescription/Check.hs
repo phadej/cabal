@@ -55,6 +55,7 @@ import Distribution.Types.UnqualComponentName
 import Distribution.Simple.Utils hiding (findPackageDesc, notice)
 import Distribution.Version
 import Distribution.Package
+import Distribution.Pretty (prettyShow)
 import Distribution.Text
 import Distribution.Utils.Generic (isAscii)
 import Language.Haskell.Extension
@@ -657,7 +658,8 @@ checkFields pkg =
 
 
 checkLicense :: PackageDescription -> [PackageCheck]
-checkLicense pkg =
+checkLicense pkg = []
+{-
   catMaybes [
 
     check (license pkg == UnspecifiedLicense) $
@@ -691,12 +693,14 @@ checkLicense pkg =
           ++ "version then please file a ticket."
       _ -> Nothing
 
+{-
   , check (license pkg `notElem` [ AllRightsReserved
                                  , UnspecifiedLicense, PublicDomain]
            -- AllRightsReserved and PublicDomain are not strictly
            -- licenses so don't need license files.
         && null (licenseFiles pkg)) $
       PackageDistSuspicious "A 'license-file' is not specified."
+-}
   ]
   where
     unknownLicenseVersion (GPL  (Just v))
@@ -712,6 +716,7 @@ checkLicense pkg =
       | v `notElem` knownVersions = Just knownVersions
       where knownVersions = [ v' | Apache  (Just v') <- knownLicenses ]
     unknownLicenseVersion _ = Nothing
+-}
 
 checkSourceRepos :: PackageDescription -> [PackageCheck]
 checkSourceRepos pkg =
@@ -1257,7 +1262,7 @@ checkCabalVersion pkg =
     -- check for new licenses
   , checkVersion [1,4] (license pkg `notElem` compatLicenses) $
       PackageDistInexcusable $
-           "Unfortunately the license " ++ quote (display (license pkg))
+           "Unfortunately the license " ++ quote (prettyShow (license pkg))
         ++ " messes up the parser in earlier Cabal versions so you need to "
         ++ "specify 'cabal-version: >= 1.4'. Alternatively if you require "
         ++ "compatibility with earlier Cabal versions then use 'OtherLicense'."
@@ -1407,9 +1412,9 @@ checkCabalVersion pkg =
             (orLaterVersion v) (earlierVersion (majorUpperBound v))
         embed vr = embedVersionRange vr
 
-    compatLicenses = [ GPL Nothing, LGPL Nothing, AGPL Nothing, BSD3, BSD4
+    compatLicenses = [] {- GPL Nothing, LGPL Nothing, AGPL Nothing, BSD3, BSD4
                      , PublicDomain, AllRightsReserved
-                     , UnspecifiedLicense, OtherLicense ]
+                     , UnspecifiedLicense, OtherLicense ] -}
 
     mentionedExtensions = [ ext | bi <- allBuildInfo pkg
                                 , ext <- allExtensions bi ]

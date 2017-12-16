@@ -148,10 +148,13 @@ formatRoundTripTest fp = testCase "roundtrip" $ do
     y <- parse (toUTF8BS contents')
     -- 'License' type doesn't support parse . pretty roundrip (yet).
     -- Will be fixed when we refactor to SPDX
+    let y' = y
+    {-
     let y' = if x ^. L.packageDescription . L.license == UnspecifiedLicense
                 && y ^. L.packageDescription . L.license == UnknownLicense "UnspecifiedLicense"
              then y & L.packageDescription . L.license .~ UnspecifiedLicense
              else y
+    -}
     assertEqual "re-parsed doesn't match" x y'
   where
     parse :: BS.ByteString -> IO GenericPackageDescription
