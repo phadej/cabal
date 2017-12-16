@@ -3,6 +3,7 @@
 module Distribution.SPDX (
     -- * License expression
     LicenseExpression (..),
+    simpleLicenseExpression,
     OnlyOrAnyLater (..),
     -- * License identifier
     LicenseId (..),
@@ -20,6 +21,8 @@ module Distribution.SPDX (
     licenseRef,
     licenseDocumentRef,
     mkLicenseRef,
+    mkLicenseRef',
+    unsafeMkLicenseRef,
     ) where
 
 import Distribution.Compat.Prelude
@@ -58,7 +61,10 @@ data LicenseExpression
     = ELicense !(Either LicenseRef LicenseId) !OnlyOrAnyLater !(Maybe LicenseExceptionId)
     | EAnd !LicenseExpression !LicenseExpression
     | EOr !LicenseExpression !LicenseExpression
-    deriving (Show, Eq, Typeable, Data, Generic)
+    deriving (Show, Read, Eq, Typeable, Data, Generic)
+
+simpleLicenseExpression :: LicenseId -> LicenseExpression
+simpleLicenseExpression i = ELicense (Right i) Only Nothing
 
 instance Binary LicenseExpression
 
@@ -71,7 +77,7 @@ instance Pretty LicenseExpression where
             in maybe id (\e d -> d <+> Disp.text "WITH" <+> pretty e) exc doc
         go d (EAnd e1 e2) = parens (d < 0) $ go 0 e1 <+> Disp.text "AND" <+> go 0 e2
         go d (EOr  e1 e2) = parens (d < 1) $ go 1 e1 <+> Disp.text "OR" <+> go 1 e2
-  
+
         prettyId (Right i) = pretty i
         prettyId (Left r)  = pretty r
 
@@ -96,8 +102,8 @@ instance Parsec LicenseExpression where
             _ <- P.spaces
             exc <- P.optionMaybe $ P.try (P.string "WITH" *> spaces1) *> parsec
             return $ ELicense i (maybe Only (const OrAnyLater) orLater) exc
-        
-        simple' n 
+
+        simple' n
             | Just l <- "LicenseRef-" `isPrefixOfMaybe` n =
                 maybe (fail $ "Incorrect LicenseRef format: " ++ n) (return . Left) $ mkLicenseRef Nothing l
             | Just d <- "DocumentRef-" `isPrefixOfMaybe` n = do

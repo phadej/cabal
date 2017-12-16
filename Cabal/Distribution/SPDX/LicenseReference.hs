@@ -5,6 +5,8 @@ module Distribution.SPDX.LicenseReference (
     licenseRef,
     licenseDocumentRef,
     mkLicenseRef,
+    mkLicenseRef',
+    unsafeMkLicenseRef,
     ) where
 
 import Prelude ()
@@ -18,11 +20,11 @@ import qualified Distribution.Compat.Parsec as P
 import qualified Text.PrettyPrint as Disp
 
 -- | A user defined license reference denoted by @LicenseRef-[idstring]@ (for a license not on the SPDX License List);
-data LicenseRef = LicenseRef 
+data LicenseRef = LicenseRef
     { _lrDocument :: !(Maybe String)
     , _lrLicense  :: !String
     }
-  deriving (Show, Eq, Typeable, Data, Generic)
+  deriving (Show, Read, Eq, Typeable, Data, Generic)
 
 -- | License reference.
 licenseRef :: LicenseRef -> String
@@ -68,3 +70,17 @@ mkLicenseRef d l = do
     checkIdString s
         | all (\c -> isAsciiAlphaNum c || c == '-' || c == '.') s = Just s
         | otherwise = Nothing
+
+-- | Like 'mkLicenseRef' but convert invalid characters into @-@.
+mkLicenseRef' :: Maybe String -> String -> LicenseRef
+mkLicenseRef' d l = LicenseRef (fmap f d) (f l)
+  where
+    f = map g
+    g c | isAsciiAlphaNum c || c == '-' || c == '.' = c
+        | otherwise                                 = '-'
+
+-- | Unsafe 'mkLicenseRef'. Consider using 'mkLicenseRef''.
+unsafeMkLicenseRef :: Maybe String -> String -> LicenseRef
+unsafeMkLicenseRef d l = case mkLicenseRef d l of
+    Nothing -> error $ "unsafeMkLicenseRef: panic" ++ show (d, l)
+    Just x  -> x
