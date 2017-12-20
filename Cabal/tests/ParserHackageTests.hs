@@ -7,7 +7,7 @@ import Prelude.Compat
 
 import Control.Monad                               (unless, when)
 import Data.Foldable                               (for_, traverse_)
-import Data.List                                   (isPrefixOf, isSuffixOf, sort)
+import Data.List                                   (isPrefixOf, isSuffixOf, sort, isInfixOf)
 import Data.Maybe                                  (mapMaybe)
 import Data.Monoid                                 (Sum (..))
 import Data.String                                 (fromString)
@@ -31,6 +31,8 @@ import qualified Distribution.PackageDescription.Parsec as Parsec
 import qualified Distribution.Parsec.Common             as Parsec
 import qualified Distribution.Parsec.Parser             as Parsec
 import qualified Distribution.ParseUtils                as ReadP
+
+import Distribution.Types.GenericPackageDescription (unFlagName)
 
 import           Distribution.Compat.Lens
 import qualified Distribution.Types.BuildInfo.Lens                 as L
@@ -96,7 +98,7 @@ compareTest pfx fpath bsl
     | otherwise = do
     let str = ignoreBOM $ fromUTF8LBS bsl
 
-    putStrLn $ "::: " ++ fpath
+    -- putStrLn $ "::: " ++ fpath
     (readp, readpWarnings)  <- case ReadP.parseGenericPackageDescription str of
         ReadP.ParseOk ws x    -> return (x, ws)
         ReadP.ParseFailed err -> print err >> exitFailure
@@ -140,7 +142,6 @@ compareTest pfx fpath bsl
     let parsec1 = if parsecHsSrcDirs /= readpHsSrcDirs && fmap filterDotDirs parsecHsSrcDirs == readpHsSrcDirs
         then parsec0 & L.buildInfos . L.hsSourceDirs %~ filterDotDirs
         else parsec0
-
     -- Compare two parse results
     -- ixset-1.0.4 has invalid prof-options, it's the only exception!
     unless (readp0 == parsec1 || fpath == "ixset/1.0.4/ixset.cabal") $ do
@@ -180,10 +181,18 @@ parseParsecTest _   fpath bsl = do
     let bs = bslToStrict bsl
     let (_warnings, errors, parsec) = Parsec.runParseResult $ Parsec.parseGenericPackageDescription bs
     case parsec of
-        Just _ -> return (Sum 1)
+        Just parsec' -> do
+            let flagNames = map unFlagName $ toListOf (L.genPackageFlags . traverse . L.flagName) parsec'
+            when (any predicate flagNames) $ do
+                print flagNames
+                putStrLn $ "::: " ++ fpath
+            return (Sum 1)
+
         Nothing -> do
             traverse_ (putStrLn . Parsec.showPError fpath) errors
             exitFailure
+  where
+    predicate n = "--" `isInfixOf` n || "__" `isInfixOf` n
 
 roundtripTest :: String -> FilePath -> BSL.ByteString -> IO (Sum Int)
 roundtripTest pfx fpath _ | not (pfx `isPrefixOf` fpath) = return (Sum 0)
