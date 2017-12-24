@@ -165,12 +165,12 @@ parseGenericPackageDescription' lexWarnings fs = do
     -- Sections
     let gpd = emptyGpd & L.packageDescription .~ pd
 
-    let specVer
-          | specVersion pd >= mkVersion [2,1]  = CabalSpecV22
-          | specVersion pd >= mkVersion [1,25] = CabalSpecV20
-          | otherwise                          = CabalSpecOld
+    let goSections'
+          | specVersion pd >= mkVersion [2,1]  = goSectionsOld
+          | specVersion pd >= mkVersion [1,25] = goSectionsV20
+          | otherwise                          = goSectionsV22
 
-    view stateGpd <$> execStateT (goSections specVer sectionFields) (SectionS gpd Map.empty)
+    view stateGpd <$> execStateT (goSections' sectionFields) (SectionS gpd Map.empty)
   where
     emptyGpd :: GenericPackageDescription
     emptyGpd = GenericPackageDescription emptyPackageDescription [] Nothing [] [] [] [] []
@@ -200,6 +200,20 @@ parseGenericPackageDescription' lexWarnings fs = do
 
     maybeWarnCabalVersion _ _ = return ()
 
+goSectionsOld :: [Field Position] -> SectionParser()
+goSectionsV20 :: [Field Position] -> SectionParser()
+goSectionsV22 :: [Field Position] -> SectionParser()
+
+goSectionsOld = goSections CabalSpecOld
+goSectionsV20 = goSections CabalSpecV20
+goSectionsV22 = goSections CabalSpecV22
+
+{-# NOINLINE goSectionsOld #-}
+{-# NOINLINE goSectionsV20 #-}
+{-# NOINLINE goSectionsV22 #-}
+
+{-# INLINE goSections #-}
+
 goSections :: CabalSpecVersion -> [Field Position] -> SectionParser ()
 goSections specVer = traverse_ process
   where
@@ -213,15 +227,6 @@ goSections specVer = traverse_ process
 
     hasCommonStanzas = specHasCommonStanzas specVer
 
-    -- we need signature, because this is polymorphic, but not-closed
-    parseCondTree' 
-        :: forall a. FromBuildInfo a
-        => ParsecFieldGrammar' a       -- ^ grammar
-        -> Map String CondTreeBuildInfo  -- ^ common stanzas
-        -> [Field Position]
-        -> ParseResult (CondTree ConfVar [Dependency] a)
-    parseCondTree' = parseCondTreeWithCommonStanzas specVer
-
     parseSection :: Name Position -> [SectionArg Position] -> [Field Position] -> SectionParser ()
     parseSection (Name pos name) args fields
         | hasCommonStanzas == NoCommonStanzas, name == "common" = lift $ do
@@ -230,7 +235,7 @@ goSections specVer = traverse_ process
         | name == "common" = do
             commonStanzas <- use stateCommonStanzas
             name' <- lift $ parseCommonName pos args
-            biTree <- lift $ parseCondTree' buildInfoFieldGrammar commonStanzas fields
+            biTree <- lift $ parseCondTreeWithCommonStanzas specVer buildInfoFieldGrammar commonStanzas fields
 
             case Map.lookup name' commonStanzas of
                 Nothing -> stateCommonStanzas .= Map.insert name' biTree commonStanzas
@@ -239,7 +244,7 @@ goSections specVer = traverse_ process
 
         | name == "library" && null args = do
             commonStanzas <- use stateCommonStanzas
-            lib <- lift $ parseCondTree' (libraryFieldGrammar Nothing) commonStanzas fields
+            lib <- lift $ parseCondTreeWithCommonStanzas specVer (libraryFieldGrammar Nothing) commonStanzas fields
             -- TODO: check that library is defined once
             stateGpd . L.condLibrary ?= lib
 
@@ -248,7 +253,7 @@ goSections specVer = traverse_ process
         | name == "library" = do
             commonStanzas <- use stateCommonStanzas
             name' <- parseUnqualComponentName pos args
-            lib   <- lift $ parseCondTree' (libraryFieldGrammar $ Just name') commonStanzas fields
+            lib   <- lift $ parseCondTreeWithCommonStanzas specVer (libraryFieldGrammar $ Just name') commonStanzas fields
             -- TODO check duplicate name here?
             stateGpd . L.condSubLibraries %= snoc (name', lib)
 
@@ -256,21 +261,21 @@ goSections specVer = traverse_ process
         | name == "foreign-library" = do
             commonStanzas <- use stateCommonStanzas
             name' <- parseUnqualComponentName pos args
-            flib  <- lift $ parseCondTree' (foreignLibFieldGrammar name')  commonStanzas fields
+            flib  <- lift $ parseCondTreeWithCommonStanzas specVer (foreignLibFieldGrammar name')  commonStanzas fields
             -- TODO check duplicate name here?
             stateGpd . L.condForeignLibs %= snoc (name', flib)
 
         | name == "executable" = do
             commonStanzas <- use stateCommonStanzas
             name' <- parseUnqualComponentName pos args
-            exe   <- lift $ parseCondTree' (executableFieldGrammar name') commonStanzas fields
+            exe   <- lift $ parseCondTreeWithCommonStanzas specVer (executableFieldGrammar name') commonStanzas fields
             -- TODO check duplicate name here?
             stateGpd . L.condExecutables %= snoc (name', exe)
 
         | name == "test-suite" = do
             commonStanzas <- use stateCommonStanzas
             name'      <- parseUnqualComponentName pos args
-            testStanza <- lift $ parseCondTree' testSuiteFieldGrammar commonStanzas fields
+            testStanza <- lift $ parseCondTreeWithCommonStanzas specVer testSuiteFieldGrammar commonStanzas fields
             testSuite  <- lift $ traverse (validateTestSuite pos) testStanza
             -- TODO check duplicate name here?
             stateGpd . L.condTestSuites %= snoc (name', testSuite)
@@ -278,7 +283,7 @@ goSections specVer = traverse_ process
         | name == "benchmark" = do
             commonStanzas <- use stateCommonStanzas
             name'       <- parseUnqualComponentName pos args
-            benchStanza <- lift $ parseCondTree' benchmarkFieldGrammar commonStanzas fields
+            benchStanza <- lift $ parseCondTreeWithCommonStanzas specVer benchmarkFieldGrammar commonStanzas fields
             bench       <- lift $ traverse (validateBenchmark pos) benchStanza
             -- TODO check duplicate name here?
             stateGpd . L.condBenchmarks %= snoc (name', bench)
