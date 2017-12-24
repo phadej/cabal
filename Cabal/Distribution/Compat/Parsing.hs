@@ -47,7 +47,6 @@ import Prelude ()
 import Distribution.Compat.Prelude
 
 import Control.Applicative ((<**>), optional)
-import Control.Monad (MonadPlus (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State.Lazy as Lazy
 import Control.Monad.Trans.State.Strict as Strict
@@ -58,7 +57,6 @@ import Control.Monad.Trans.RWS.Strict as Strict
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Control.Monad.Trans.Identity (IdentityT (..))
 import Data.Foldable (asum)
-import Data.Traversable (sequenceA)
 
 import qualified Text.Parsec as Parsec
 import qualified Distribution.Compat.ReadP as ReadP
