@@ -20,6 +20,7 @@ import qualified Text.Microstache     as M
 import GenUtils
 
 data Opts = Opts FilePath (PerV FilePath) FilePath
+  deriving (Show)
 
 main :: IO ()
 main = generate =<< O.execParser opts where

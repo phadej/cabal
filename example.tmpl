@@ -1,0 +1,17 @@
+asdada
+asdasdasd
+{{foo.var1}}
+asdsad {{foo.bar.var2}} asdasd
+
+foobar
+{% for bar in foo.vars %}
+aasd {{bar}} asdasd
+{% endfor %}
+
+{% if foo.boolean %}
+{% for baz in foo.vars %}
+{{baz}}
+{% endfor %}
+{% endif %}
+
+END
