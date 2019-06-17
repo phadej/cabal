@@ -40,7 +40,7 @@ prettyVer SPDXLicenseListVersion_3_0 = "SPDX License List 3.0"
 -------------------------------------------------------------------------------
 
 data PerV a = PerV a a a
-  deriving (Functor, Foldable, Traversable)
+  deriving (Show, Functor, Foldable, Traversable)
 
 -------------------------------------------------------------------------------
 -- Sorting
