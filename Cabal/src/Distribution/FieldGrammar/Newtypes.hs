@@ -43,7 +43,8 @@ import Distribution.License          (License)
 import Distribution.Parsec
 import Distribution.Pretty
 import Distribution.Version
-       (LowerBound (..), Version, VersionRange, VersionRangeF (..), anyVersion, asVersionIntervals, cataVersionRange, mkVersion, version0, versionNumbers)
+       (LowerBound (..), Version, VersionInterval (..), VersionRange, VersionRangeF (..), anyVersion, asVersionIntervals, cataVersionRange, mkVersion,
+       version0, versionNumbers)
 import Text.PrettyPrint              (Doc, comma, fsep, punctuate, text, vcat)
 
 import qualified Data.Set                        as Set
@@ -284,8 +285,8 @@ instance Parsec SpecVersion where
 
         specVersionFromRange :: VersionRange -> Version
         specVersionFromRange versionRange = case asVersionIntervals versionRange of
-            []                            -> version0
-            ((LowerBound version _, _):_) -> version
+            []                                           -> version0
+            VersionInterval (LowerBound version _) _ : _ -> version
 
         simpleSpecVersionRangeSyntax = cataVersionRange alg where
             alg (OrLaterVersionF _) = True

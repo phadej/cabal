@@ -151,8 +151,9 @@ versionRangeToPkgconfigVersionRange vr
         []     -> PcEarlierVersion (PkgconfigVersion (BS8.pack "0"))
         (i:is) -> foldl (\r j -> PcUnionVersionRanges r (conv j)) (conv i) is
   where
-    conv (LowerBound v b, NoUpperBound)   = convL v b
-    conv (LowerBound v b, UpperBound u c) = PcIntersectVersionRanges (convL v b) (convU u c)
+    conv (VersionInterval (LowerBound v b) NoUpperBound)     = convL v b
+    conv (VersionInterval (LowerBound v b) (UpperBound u c)) = PcIntersectVersionRanges (convL v b) (convU u c)
+    conv (VersionInterval (LowerBound v b) (MajorBound u _todo))   = PcIntersectVersionRanges (convL v b) (convU (majorUpperBound u) ExclusiveBound)
 
     convL v ExclusiveBound = PcLaterVersion (versionToPkgconfigVersion v)
     convL v InclusiveBound = PcOrLaterVersion (versionToPkgconfigVersion v)

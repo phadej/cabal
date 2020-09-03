@@ -5,7 +5,10 @@ benchmarks: False
 optimization: True
 
 package Cabal
-  ghc-options: -fexpose-all-unfoldings -fspecialise-aggressively
+  ghc-options: -fexpose-all-unfoldings -fspecialise-aggressively -fignore-asserts
 
 package parsec
   ghc-options: -fexpose-all-unfoldings
+
+paackage cabal-install
+  ghc-options: -fignore-asserts
