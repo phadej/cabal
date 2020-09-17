@@ -34,3 +34,5 @@ package cabal-testsuite
   ghc-options: -fno-ignore-asserts
 package cabal-install
   ghc-options: -fno-ignore-asserts
+
+allow-newer: resolv-0.1.2.0:base16-bytestring

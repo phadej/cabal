@@ -73,4 +73,4 @@ RUN     cabal v2-install -w ghc-8.8.3 --lib \
 # Validate
 WORKDIR /build
 COPY    . /build
-RUN     sh ./validate.sh --doctest --solver-benchmarks --complete-hackage -w ghc-8.8.3 -v
+RUN     sh ./validate.sh --doctest --solver-benchmarks --complete-hackage-tests -w ghc-8.8.3 -v
