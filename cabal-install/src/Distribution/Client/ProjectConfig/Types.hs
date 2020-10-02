@@ -107,6 +107,7 @@ data ProjectConfig
        projectPackagesRepo          :: [SourceRepoList],
 
        -- | Packages in this project from hackage repositories.
+       -- TODO: this is wrong, this should be Dependency.
        projectPackagesNamed         :: [PackageVersionConstraint],
 
        -- See respective types for an explanation of what these

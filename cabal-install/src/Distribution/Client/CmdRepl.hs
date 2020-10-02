@@ -101,6 +101,7 @@ import Language.Haskell.Extension
          ( Language(..) )
 import Distribution.CabalSpecVersion
          ( CabalSpecVersion (..) )
+import Distribution.Types.PackageVersionConstraint (PackageVersionConstraint (..))
 
 import Data.List
          ( (\\) )
@@ -210,25 +211,6 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
           ++ "You may wish to use 'build --only-dependencies' and then "
           ++ "use 'repl'."
 
-    (originalComponent, baseCtx') <- if null (envPackages envFlags)
-      then return (Nothing, baseCtx)
-      else
-        -- Unfortunately, the best way to do this is to let the normal solver
-        -- help us resolve the targets, but that isn't ideal for performance,
-        -- especially in the no-project case.
-        withInstallPlan (lessVerbose verbosity) baseCtx $ \elaboratedPlan _ -> do
-          -- targets should be non-empty map, but there's no NonEmptyMap yet.
-          targets <- validatedTargets elaboratedPlan targetSelectors
-
-          let
-            (unitId, _) = fromMaybe (error "panic: targets should be non-empty") $ safeHead $ Map.toList targets
-            originalDeps = installedUnitId <$> InstallPlan.directDeps elaboratedPlan unitId
-            oci = OriginalComponentInfo unitId originalDeps
-            pkgId = fromMaybe (error $ "cannot find " ++ prettyShow unitId) $ packageId <$> InstallPlan.lookup elaboratedPlan unitId
-            baseCtx' = addDepsToProjectTarget (envPackages envFlags) pkgId baseCtx
-
-          return (Just oci, baseCtx')
-
     -- Now, we run the solver again with the added packages. While the graph
     -- won't actually reflect the addition of transitive dependencies,
     -- they're going to be available already and will be offered to the REPL
@@ -237,9 +219,9 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
     -- In addition, to avoid a *third* trip through the solver, we are
     -- replicating the second half of 'runProjectPreBuildPhase' by hand
     -- here.
-    (buildCtx, replFlags'') <- withInstallPlan verbosity baseCtx' $
+    (buildCtx, replFlags'') <- withInstallPlan verbosity baseCtx $
       \elaboratedPlan elaboratedShared' -> do
-        let ProjectBaseContext{..} = baseCtx'
+        let ProjectBaseContext{..} = baseCtx
 
         -- Recalculate with updated project.
         targets <- validatedTargets elaboratedPlan targetSelectors
@@ -273,9 +255,9 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
           -- https://downloads.haskell.org/~ghc/7.6.1/docs/html/users_guide/release-7-6-1.html
           minGhciScriptVersion = mkVersion [7, 6]
 
-          replFlags' = case originalComponent of
+          replFlags' = []  {- case originalComponent of
             Just oci -> generateReplFlags includeTransitive elaboratedPlan' oci
-            Nothing  -> []
+            Nothing  -> [] -} -- TODO
           replFlags'' = case replType of
             GlobalRepl scriptPath
               | Just version <- compilerCompatVersion GHC compiler
@@ -288,15 +270,23 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
           { elaboratedShared = (elaboratedShared buildCtx)
                 { pkgConfigReplOptions = replFlags ++ replFlags'' }
           }
-    printPlan verbosity baseCtx' buildCtx'
+    printPlan verbosity baseCtx buildCtx'
 
-    buildOutcomes <- runProjectBuildPhase verbosity baseCtx' buildCtx'
-    runProjectPostBuildPhase verbosity baseCtx' buildCtx' buildOutcomes
+    buildOutcomes <- runProjectBuildPhase verbosity baseCtx buildCtx'
+    runProjectPostBuildPhase verbosity baseCtx buildCtx' buildOutcomes
     finalizer
   where
-    verbosity = fromFlagOrDefault normal (configVerbosity configFlags)
-    ignoreProject = flagIgnoreProject projectFlags
-    cliConfig = commandLineFlagsToProjectConfig globalFlags flags mempty -- ClientInstallFlags, not needed here
+    cliConfig0 = commandLineFlagsToProjectConfig globalFlags flags mempty -- ClientInstallFlags, not needed here
+    cliConfig  = cliConfig0
+        { projectPackagesNamed = projectPackagesNamed cliConfig0 ++
+            -- TODO: this is wrong as this should be Dependency
+            [ PackageVersionConstraint pn vr
+            | Dependency pn vr _unused <- envPackages envFlags
+            ]
+        }
+
+    verbosity        = fromFlagOrDefault normal (configVerbosity configFlags)
+    ignoreProject    = flagIgnoreProject projectFlags
     globalConfigFlag = projectConfigConfigFile (projectConfigShared cliConfig)
 
     validatedTargets elaboratedPlan targetSelectors = do
@@ -392,7 +382,7 @@ withoutProject config verbosity extraArgs = do
       OtherCommand
 
   let
-    targetSelectors = [TargetPackage TargetExplicitNamed [pkgId] Nothing]
+    targetSelectors = [TargetAllPackages Nothing]
     finalizer = handleDoesNotExist () (removeDirectoryRecursive tempDir)
 
   return (baseCtx, targetSelectors, finalizer, GlobalRepl ghciScriptPath)
