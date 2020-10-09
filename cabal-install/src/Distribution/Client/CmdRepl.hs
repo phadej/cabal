@@ -255,9 +255,12 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
           -- https://downloads.haskell.org/~ghc/7.6.1/docs/html/users_guide/release-7-6-1.html
           minGhciScriptVersion = mkVersion [7, 6]
 
-          replFlags' = []  {- case originalComponent of
-            Just oci -> generateReplFlags includeTransitive elaboratedPlan' oci
-            Nothing  -> [] -} -- TODO
+          oci :: OriginalComponentInfo
+          oci = case Map.toList targets of
+              [] -> error "Should not happen: targets should be non-empty map"
+              (unit, _): _ -> OriginalComponentInfo unit []
+
+          replFlags' = generateReplFlags includeTransitive elaboratedPlan' oci
           replFlags'' = case replType of
             GlobalRepl scriptPath
               | Just version <- compilerCompatVersion GHC compiler
@@ -270,8 +273,7 @@ replAction flags@NixStyleFlags { extraFlags = (replFlags, envFlags), ..} targetS
           { elaboratedShared = (elaboratedShared buildCtx)
                 { pkgConfigReplOptions = replFlags ++ replFlags'' }
           }
-    printPlan verbosity baseCtx buildCtx'
-
+  
     buildOutcomes <- runProjectBuildPhase verbosity baseCtx buildCtx'
     runProjectPostBuildPhase verbosity baseCtx buildCtx' buildOutcomes
     finalizer

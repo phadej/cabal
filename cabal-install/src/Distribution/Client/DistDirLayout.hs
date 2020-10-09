@@ -121,6 +121,9 @@ data DistDirLayout = DistDirLayout {
        distPackageDB                :: CompilerId -> PackageDB
      }
 
+instance Show DistDirLayout where
+    show _ = "(undefined :: DistDirLayout)"
+
 
 -- | The layout of a cabal nix-style store.
 --
@@ -134,6 +137,8 @@ data StoreDirLayout = StoreDirLayout {
        storeIncomingLock      :: CompilerId -> UnitId -> FilePath
      }
 
+instance Show StoreDirLayout where
+    show _ = "(undefined :: StoreDirLayout)"
 
 --TODO: move to another module, e.g. CabalDirLayout?
 -- or perhaps rename this module to DirLayouts.
@@ -150,6 +155,8 @@ data CabalDirLayout = CabalDirLayout {
        cabalLogsDirectory         :: FilePath,
        cabalWorldFile             :: FilePath
      }
+  deriving Show
+
 
 
 -- | Information about the root directory of the project.

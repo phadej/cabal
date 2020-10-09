@@ -457,3 +457,6 @@ data BuildTimeSettings
        buildSettingIgnoreExpiry          :: Bool,
        buildSettingProgPathExtra         :: [FilePath]
      }
+
+instance Show BuildTimeSettings where
+    show _ = "(undefined :: BuildTimeSettings)"

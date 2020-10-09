@@ -184,6 +184,7 @@ data ProjectBaseContext = ProjectBaseContext {
        buildSettings  :: BuildTimeSettings,
        currentCommand :: CurrentCommand
      }
+  deriving Show
 
 establishProjectBaseContext
     :: Verbosity
