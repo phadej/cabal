@@ -255,7 +255,9 @@ dump hpi verbosity packagedb = do
                        ++ displayException e
 
   case parsePackages output of
-    Left ok -> return ok
+    Left ok -> do
+      putStrLn $ unwords $ "BAZINGA" : map (prettyShow . installedUnitId) ok
+      return ok
     _       -> die' verbosity $ "failed to parse output of '"
                   ++ programId (hcPkgProgram hpi) ++ " dump'"
 

@@ -47,7 +47,7 @@
 module Distribution.Simple.PackageIndex (
   -- * Package index data type
   InstalledPackageIndex,
-  PackageIndex,
+  PackageIndex (..),
 
   -- * Creating an index
   fromList,
