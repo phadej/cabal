@@ -73,6 +73,7 @@ data InstalledPackageInfo = InstalledPackageInfo
   , libraryDirs :: [FilePath]
   , libraryDirsStatic :: [FilePath]
   , libraryDynDirs :: [FilePath]
+  , libraryBytecodeDirs :: [FilePath]
   -- ^ overrides 'libraryDirs'
   , dataDir :: FilePath
   , hsLibraries :: [String]
