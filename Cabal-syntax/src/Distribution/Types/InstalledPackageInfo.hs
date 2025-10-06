@@ -161,6 +161,7 @@ emptyInstalledPackageInfo =
     , hsLibraries = []
     , extraLibraries = []
     , extraLibrariesStatic = []
+    , libraryBytecodeDirs = []
     , extraGHCiLibraries = []
     , includeDirs = []
     , includes = []
