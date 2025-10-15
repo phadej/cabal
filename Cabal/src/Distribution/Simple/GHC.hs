@@ -980,6 +980,7 @@ installLib verbosity lbi targetDir dynlibTargetDir _builtDir pkg lib clbi = do
     DynWay -> copyModuleFiles (Suffix "dyn_hi")
     ProfWay -> copyModuleFiles (Suffix "p_hi")
     ProfDynWay -> copyModuleFiles (Suffix "p_dyn_hi")
+    BytecodeWay -> copyModuleFiles (Suffix "gbc")
 
   -- copy extra compilation artifacts that ghc plugins may produce
   copyDirectoryIfExists extraCompilationArtifacts
@@ -1008,6 +1009,8 @@ installLib verbosity lbi targetDir dynlibTargetDir _builtDir pkg lib clbi = do
           builtDir
           dynlibTargetDir
           (mkProfSharedLibName platform compiler_id uid)
+      BytecodeWay -> do
+        fail "TODO4"
       DynWay -> do
         if
             -- The behavior for "extra-bundled-libraries" changed in version 2.5.0.

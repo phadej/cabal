@@ -753,6 +753,9 @@ computeLocalBuildConfig cfg comp programDb = do
         -- into a huge .a archive) via GHCs -staticlib flag.
         fromFlagOrDefault False $ configStaticLib cfg
 
+      withBytecodeLib_ =
+        fromFlagOrDefault False $ configBytecodeLib cfg
+
       withDynExe_ = fromFlag $ configDynExe cfg
 
       withFullyStaticExe_ = fromFlag $ configFullyStaticExe cfg
@@ -786,6 +789,7 @@ computeLocalBuildConfig cfg comp programDb = do
             { withVanillaLib = fromFlag $ configVanillaLib cfg
             , withSharedLib = withSharedLib_
             , withStaticLib = withStaticLib_
+            , withBytecodeLib = withBytecodeLib_
             , withDynExe = withDynExe_
             , withFullyStaticExe = withFullyStaticExe_
             , withProfLib = False

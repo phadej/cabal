@@ -279,6 +279,9 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
     staticLibFilePath =
       buildTargetDir
         </> makeRelativePathEx (mkStaticLibName (hostPlatform lbi) compiler_id uid)
+    bytecodeLibFilePath =
+      buildTargetDir
+        </> makeRelativePathEx (mkBytecodeLibName compiler_id uid)
     ghciLibFilePath = buildTargetDir </> makeRelativePathEx (Internal.mkGHCiLibName uid)
     ghciProfLibFilePath = buildTargetDir </> makeRelativePathEx (Internal.mkGHCiProfLibName uid)
     libInstallPath =
@@ -304,14 +307,14 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
             lbi
             clbi
             buildTargetDir
-            (buildWayPrefix way ++ objExtension)
+            (buildWayObjectExtension objExtension way)
             True
         , pure $ map (srcObjPath way) extraSources
         , catMaybes
             <$> sequenceA
               [ findFileCwdWithExtension
                 mbWorkDir
-                [Suffix $ buildWayPrefix way ++ objExtension]
+                [Suffix $ buildWayObjectExtension objExtension way]
                 [buildTargetDir]
                 xPath
               | ghcVersion < mkVersion [7, 2] -- ghc-7.2+ does not make _stub.o files
@@ -332,7 +335,7 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
         Nothing -> objPath
         Just objRelPath -> coerceSymbolicPath buildTargetDir </> objRelPath
       where
-        objPath = srcPath `replaceExtensionSymbolicPath` (buildWayPrefix way ++ objExtension)
+        objPath = srcPath `replaceExtensionSymbolicPath` buildWayObjectExtension objExtension way
 
     -- I'm fairly certain that, just like the executable, we can keep just the
     -- module input list, and point to the right sources dir (as is already
@@ -343,6 +346,7 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
     -- we could more easily merge the two.
     --
     -- Right now, instead, we pass the path to each object file.
+    ghcBaseLinkArgs :: GhcOptions
     ghcBaseLinkArgs =
       mempty
         { -- TODO: This basically duplicates componentGhcOptions.
@@ -435,11 +439,18 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
         , -- TODO: Shouldn't this use cleanedExtraLibDirsStatic instead?
           ghcOptLinkLibPath = toNubListR $ cleanedExtraLibDirs
         }
+    ghcBytecodeLinkArgs objectFiles =
+      ghcBaseLinkArgs
+        { ghcOptBytecodeLib = toFlag True
+        , ghcOptInputFiles = toNubListR $ map coerceSymbolicPath objectFiles
+        , ghcOptOutputFile = toFlag bytecodeLibFilePath
+        }
 
   staticObjectFiles <- getObjFiles StaticWay
   profObjectFiles <- getObjFiles ProfWay
   dynamicObjectFiles <- getObjFiles DynWay
   profDynamicObjectFiles <- getObjFiles ProfDynWay
+  bytecodeObjectFiles <- getObjFiles BytecodeWay
 
   let
     linkWay = \case
@@ -470,6 +481,10 @@ linkLibrary buildTargetDir cleanedExtraLibDirs pkg_descr verbosity runGhcProg li
               staticObjectFiles
         when (withStaticLib lbi) $ do
           runGhcProg $ ghcStaticLinkArgs staticObjectFiles
+      BytecodeWay -> do
+        when (withBytecodeLib lbi) $ do
+          runGhcProg $ ghcBytecodeLinkArgs bytecodeObjectFiles
+
 
   -- ROMES: Why exactly branch on staticObjectFiles, rather than any other build
   -- kind that we might have wanted instead?

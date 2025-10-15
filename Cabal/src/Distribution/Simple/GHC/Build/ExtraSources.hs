@@ -247,12 +247,14 @@ buildExtraSources
                       DynWay -> compileIfNeeded sharedSrcOpts{ghcOptObjSuffix = toFlag "dyn_o"}
                       ProfWay -> compileIfNeeded profSrcOpts{ghcOptObjSuffix = toFlag "p_o"}
                       ProfDynWay -> compileIfNeeded profSharedSrcOpts{ghcOptObjSuffix = toFlag "p_dyn_o"}
+                      BytecodeWay -> fail "TODO1"
             CFLib flib ->
               case neededFLibWay (withDynFLib flib) of
                 StaticWay -> compileIfNeeded vanillaSrcOpts
                 DynWay -> compileIfNeeded sharedSrcOpts
                 ProfWay -> compileIfNeeded profSrcOpts
                 ProfDynWay -> compileIfNeeded profSharedSrcOpts
+                BytecodeWay -> fail "TODO2"
             -- For the remaining component types (Exec, Test, Bench), we also
             -- determine with which options to build the objects (vanilla vs shared vs
             -- profiled), but predicate is the same for the three kinds.
@@ -262,6 +264,7 @@ buildExtraSources
                 DynWay -> compileIfNeeded sharedSrcOpts
                 ProfWay -> compileIfNeeded profSrcOpts
                 ProfDynWay -> compileIfNeeded profSharedSrcOpts
+                BytecodeWay -> fail "TODO2"
 
       -- build any sources
       if (null sources || componentIsIndefinite clbi)

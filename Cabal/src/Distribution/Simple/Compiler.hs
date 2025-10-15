@@ -575,6 +575,9 @@ profilingDynamicSupportedOrUnknown comp =
 dynamicSupported :: Compiler -> Maybe Bool
 dynamicSupported comp = waySupported "dyn" comp
 
+bytecodeSupported :: Compiler -> Maybe Bool
+bytecodeSupported _comp = Just True -- TODO: for now assume that bytecode libraries are always supported.
+
 -- | Does this compiler support a package database entry with:
 -- "visibility"?
 libraryVisibilitySupported :: Compiler -> Bool

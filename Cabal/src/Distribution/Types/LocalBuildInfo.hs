@@ -33,6 +33,7 @@ module Distribution.Types.LocalBuildInfo
       , withProfExe
       , withSharedLib
       , withStaticLib
+      , withBytecodeLib
       , withProfLibDetail
       , withProfExeDetail
       , withOptimization
@@ -173,6 +174,7 @@ pattern LocalBuildInfo
   -> Bool
   -> Bool
   -> Bool
+  -> Bool
   -> ProfDetailLevel
   -> ProfDetailLevel
   -> OptimisationLevel
@@ -208,6 +210,7 @@ pattern LocalBuildInfo
   , withProfLibShared
   , withSharedLib
   , withStaticLib
+  , withBytecodeLib
   , withDynExe
   , withFullyStaticExe
   , withProfExe
@@ -260,6 +263,7 @@ pattern LocalBuildInfo
             , withProfLibShared
             , withSharedLib
             , withStaticLib
+            , withBytecodeLib
             , withDynExe
             , withFullyStaticExe
             , withProfExe
@@ -461,6 +465,7 @@ buildWays lbi =
         -- MP: Ideally we should have `BuildOptions` on a per component basis, in
         -- which case this `is_indef` check could be moved to configure time.
         <> [StaticWay | withVanillaLib lbi || withStaticLib lbi]
+        <> [BytecodeWay | withBytecodeLib lbi ]
 
     wantedFLibWay is_dyn_flib =
       case (is_dyn_flib, withProfExe lbi) of

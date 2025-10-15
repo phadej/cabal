@@ -6,7 +6,7 @@
 module Distribution.Simple.GHC.Build.Modules
   ( buildHaskellModules
   , BuildWay (..)
-  , buildWayPrefix
+  , buildWayObjectExtension
   , componentInputs
   ) where
 
@@ -51,8 +51,9 @@ There are multiple ways in which we may want to build our Haskell modules:
   * The static way (-static)
   * The dynamic/shared way (-dynamic)
   * The profiled way (-prof)
+  * Bytecode library (-fwrite-bytecode, -fbyte-code-and-object-code)
 
-For libraries, we may /want/ to build modules in all three ways, or in any combination, depending on user options.
+For libraries, we may /want/ to build modules in all ways, or in any combination, depending on user options.
 For executables, we just /want/ to build the executable in the requested way.
 
 In practice, however, we may /need/ to build modules in additional ways beyonds the ones that were requested.
@@ -93,6 +94,15 @@ To build a library with profiling and dynamically, with a static by default GHC,
 To build an executable statically, with a static by default GHC, regardless of whether TH is used:
   * Simply build static objects
 
+Bytecode libraries (https://github.com/haskell/cabal-proposals/blob/wip/bytecode-options/proposals/bytecode-files.md)
+are an additional way.
+For now we add it do dynamic and dynamic-too ways when requested.
+This means that building only static library with --enable-library-bytecode won't build bytecode.
+Profiling is enother wrinkle, because for TH needs, profiling builds will build dynamic libraries
+with non-profiling too as explained above (i.e. two GHC invocations),
+there will be bytecode for *non-profiled* build (i.e. to match the GHC).
+However, this is only correct if GHC itself is non-profiled (which it is most of the time).
+
 -}
 
 -- | Compile the Haskell modules of the component being built.
@@ -129,6 +139,8 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
     what = buildingWhat pbci
     comp = buildCompiler pbci
     i = interpretSymbolicPathLBI lbi -- See Note [Symbolic paths] in Distribution.Utils.Path
+    neededLibWaysSet = Set.fromList neededLibWays
+
 
     -- If this component will be loaded into a repl, we don't compile the modules at all.
     forRepl
@@ -179,13 +191,12 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
           , ghcOptInputFiles = toNubListR hsMains
           , ghcOptInputScripts = toNubListR scriptMains
           , ghcOptExtra = buildWayExtraHcOptions way GHC bi
-          , ghcOptHiSuffix = optSuffixFlag (buildWayPrefix way) "hi"
-          , ghcOptObjSuffix = optSuffixFlag (buildWayPrefix way) "o"
+          , ghcOptHiSuffix = optSuffixFlag (buildWayInterfaceExtension way) "hi"
+          , ghcOptObjSuffix = optSuffixFlag (buildWayObjectExtension "o" way) "o"
           , ghcOptHPCDir = hpcdir (buildWayHpcWay way) -- maybe this should not be passed for vanilla?
           }
       where
-        optSuffixFlag "" _ = NoFlag
-        optSuffixFlag pre x = toFlag (pre ++ x)
+        optSuffixFlag x y = if x == y then NoFlag else toFlag x
 
     -- For libs we don't pass -static when building static, leaving it
     -- implicit. We should just always pass -static, but we don't want to
@@ -196,6 +207,7 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
         { ghcOptDynLinkMode = toFlag GhcDynamicOnly -- use -dynamic
         , -- TODO: Does it hurt to set -fPIC for executables?
           ghcOptFPic = toFlag True -- use -fPIC
+        , ghcOptBytecodeAndObjectCode = toFlag (BytecodeWay `Set.member` neededLibWaysSet)
         }
     profOpts =
       (baseOpts ProfWay)
@@ -222,11 +234,12 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
     dynTooOpts =
       (baseOpts StaticWay)
         { ghcOptDynLinkMode = toFlag GhcStaticAndDynamic -- use -dynamic-too
-        , ghcOptDynHiSuffix = toFlag (buildWayPrefix DynWay ++ "hi")
-        , ghcOptDynObjSuffix = toFlag (buildWayPrefix DynWay ++ "o")
+        , ghcOptDynHiSuffix = toFlag (buildWayInterfaceExtension DynWay)
+        , ghcOptDynObjSuffix = toFlag (buildWayObjectExtension "o" DynWay)
         , ghcOptHPCDir = hpcdir Hpc.Dyn
         -- Should we pass hcSharedOpts in the -dynamic-too ghc invocation?
         -- (Note that `baseOtps StaticWay = hcStaticOptions`, not hcSharedOpts)
+        , ghcOptBytecodeAndObjectCode = toFlag (BytecodeWay `Set.member` neededLibWaysSet)
         }
 
     profDynTooOpts =
@@ -239,8 +252,8 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
             Internal.profDetailLevelFlag
               (if isLib then True else False)
               ((if isLib then withProfLibDetail else withProfExeDetail) lbi)
-        , ghcOptDynHiSuffix = toFlag (buildWayPrefix ProfDynWay ++ "hi")
-        , ghcOptDynObjSuffix = toFlag (buildWayPrefix ProfDynWay ++ "o")
+        , ghcOptDynHiSuffix = toFlag (buildWayInterfaceExtension ProfDynWay)
+        , ghcOptDynObjSuffix = toFlag (buildWayObjectExtension "o" ProfDynWay)
         , ghcOptHPCDir = hpcdir Hpc.ProfDyn
         -- Should we pass hcSharedOpts in the -dynamic-too ghc invocation?
         -- (Note that `baseOtps StaticWay = hcStaticOptions`, not hcSharedOpts)
@@ -253,13 +266,12 @@ buildHaskellModules numJobs ghcProg mbMainFile inputModules buildTargetDir neede
       DynWay -> dynOpts
       ProfWay -> profOpts
       ProfDynWay -> profDynOpts
+      BytecodeWay -> dynOpts -- unused
 
   -- If there aren't modules, or if we're loading the modules in repl, don't build.
   unless (forRepl || (isNothing mbMainFile && null inputModules)) $ liftIO $ do
     -- See Note [Building Haskell Modules accounting for TH]
     let
-      neededLibWaysSet = Set.fromList neededLibWays
-
       -- If we need both static and dynamic, use dynamic-too instead of
       -- compiling twice (if we support it)
       useDynamicToo =
@@ -345,6 +357,7 @@ buildWayHpcWay = \case
   ProfWay -> Hpc.Prof
   DynWay -> Hpc.Dyn
   ProfDynWay -> Hpc.ProfDyn
+  BytecodeWay -> error "HPC and bytecode together are not supported"
 
 -- | Returns a function to extract the extra haskell compiler options from a
 -- 'BuildInfo' and 'CompilerFlavor'
@@ -354,6 +367,7 @@ buildWayExtraHcOptions = \case
   ProfWay -> hcProfOptions
   DynWay -> hcSharedOptions
   ProfDynWay -> hcProfSharedOptions
+  BytecodeWay -> error "TODO5"
 
 -- | Returns a pair of the main file and Haskell modules of the component being
 -- built. The main file is not necessarily a Haskell file. It could also be

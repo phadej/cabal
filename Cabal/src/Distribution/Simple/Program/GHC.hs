@@ -570,8 +570,10 @@ data GhcOptions = GhcOptions
     -- Creating libraries
 
     ghcOptDynLinkMode :: Flag GhcDynLinkMode
+  , ghcOptBytecodeAndObjectCode :: Flag Bool
   , ghcOptStaticLib :: Flag Bool
   , ghcOptShared :: Flag Bool
+  , ghcOptBytecodeLib :: Flag Bool
   , ghcOptFPic :: Flag Bool
   , ghcOptDylibName :: Flag String
   , ghcOptRPaths :: NubListR FilePath
@@ -818,11 +820,13 @@ renderGhcOptions comp _platform@(Platform _arch os) opts
 
           ["-staticlib" | flagBool ghcOptStaticLib]
         , ["-shared" | flagBool ghcOptShared]
+        , ["-bytecodelib" | flagBool ghcOptBytecodeLib]
         , case flagToMaybe (ghcOptDynLinkMode opts) of
             Nothing -> []
             Just GhcStaticOnly -> ["-static"]
             Just GhcDynamicOnly -> ["-dynamic"]
             Just GhcStaticAndDynamic -> ["-static", "-dynamic-too"]
+        , ["-fbyte-code-and-object-code" | flagBool ghcOptBytecodeAndObjectCode]
         , ["-fPIC" | flagBool ghcOptFPic]
         , concat [["-dylib-install-name", libname] | libname <- flag ghcOptDylibName]
         , ------------------------
